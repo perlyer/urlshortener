@@ -1,0 +1,17 @@
+# скомпилированные бинарники
+/bin/
+*.exe
+*.test
+
+# переменные окружения
+.env
+.env.local
+
+# фронтенд (появится в M4)
+web/node_modules/
+web/dist/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
