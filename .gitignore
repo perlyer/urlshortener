@@ -2,6 +2,10 @@
 /bin/
 *.exe
 *.test
+# бинарники сервисов (go build ./cmd/...)
+/api
+/redirector
+/analytics
 
 # переменные окружения
 .env

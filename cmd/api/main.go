@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
@@ -121,6 +122,12 @@ func main() {
 
 	// Роутер: какой путь/метод → какой обработчик.
 	r := chi.NewRouter()
+	// CORS для фронта (dev). В проде список Origin стоит сузить.
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST"},
+		AllowedHeaders: []string{"Content-Type"},
+	}))
 	r.Post("/api/links", makeCreateHandler(store, cfg.BaseURL))
 	r.Get("/api/links/{code}/stats", makeStatsHandler(store, statsRedis))
 
