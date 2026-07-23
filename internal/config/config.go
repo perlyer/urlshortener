@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseURL string // строка подключения к Postgres
 	Port        string // порт HTTP-сервера
 	BaseURL     string // базовый адрес коротких ссылок (хост redirector)
+	RedisAddr   string // адрес Redis, host:port
 	CodeLength  int    // длина генерируемого короткого кода
 }
 
@@ -22,6 +23,7 @@ func Load() (Config, error) {
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		Port:        getenv("PORT", "8080"),
 		BaseURL:     getenv("BASE_URL", "http://localhost:8081"),
+		RedisAddr:   getenv("REDIS_ADDR", "localhost:6379"),
 	}
 
 	if cfg.DatabaseURL == "" {

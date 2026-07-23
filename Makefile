@@ -4,7 +4,7 @@ DATABASE_URL ?= postgres://shortener:shortener@localhost:5432/shortener?sslmode=
 
 ## поднять Postgres в docker
 db-up:
-	docker compose -f deploy/docker-compose.yml up -d postgres
+	docker compose -f deploy/docker-compose.yml up -d postgres redis
 
 ## остановить и удалить контейнеры
 db-down:
