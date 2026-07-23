@@ -47,3 +47,54 @@ func (q *Queries) GetLink(ctx context.Context, code string) (Link, error) {
 	)
 	return i, err
 }
+
+const incrClickStat = `-- name: IncrClickStat :exec
+INSERT INTO click_stats (code, dimension, value, count)
+VALUES ($1, $2, $3, 1)
+ON CONFLICT (code, dimension, value)
+DO UPDATE SET count = click_stats.count + 1
+`
+
+type IncrClickStatParams struct {
+	Code      string `json:"code"`
+	Dimension string `json:"dimension"`
+	Value     string `json:"value"`
+}
+
+func (q *Queries) IncrClickStat(ctx context.Context, arg IncrClickStatParams) error {
+	_, err := q.db.Exec(ctx, incrClickStat, arg.Code, arg.Dimension, arg.Value)
+	return err
+}
+
+const listClickStats = `-- name: ListClickStats :many
+SELECT dimension, value, count
+FROM click_stats
+WHERE code = $1
+ORDER BY dimension, count DESC
+`
+
+type ListClickStatsRow struct {
+	Dimension string `json:"dimension"`
+	Value     string `json:"value"`
+	Count     int64  `json:"count"`
+}
+
+func (q *Queries) ListClickStats(ctx context.Context, code string) ([]ListClickStatsRow, error) {
+	rows, err := q.db.Query(ctx, listClickStats, code)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListClickStatsRow{}
+	for rows.Next() {
+		var i ListClickStatsRow
+		if err := rows.Scan(&i.Dimension, &i.Value, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

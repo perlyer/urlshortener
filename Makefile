@@ -4,7 +4,7 @@ DATABASE_URL ?= postgres://shortener:shortener@localhost:5432/shortener?sslmode=
 
 ## поднять Postgres в docker
 db-up:
-	docker compose -f deploy/docker-compose.yml up -d postgres redis
+	docker compose -f deploy/docker-compose.yml up -d postgres redis kafka
 
 ## остановить и удалить контейнеры
 db-down:
@@ -37,3 +37,13 @@ run-api:
 ## запустить redirector-сервис
 run-redirector:
 	DATABASE_URL="$(DATABASE_URL)" PORT=8081 go run ./cmd/redirector
+
+## запустить analytics-consumer
+run-analytics:
+	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/analytics
+
+## скачать/обновить GeoIP-базу (DB-IP Lite, без регистрации)
+geoip-fetch:
+	mkdir -p deploy/geoip
+	curl -sfL -o deploy/geoip/dbip-country-lite.mmdb.gz "https://download.db-ip.com/free/dbip-country-lite-$(shell date +%Y-%m).mmdb.gz"
+	gunzip -f deploy/geoip/dbip-country-lite.mmdb.gz

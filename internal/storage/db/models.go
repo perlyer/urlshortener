@@ -8,6 +8,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ClickStat struct {
+	Code      string `json:"code"`
+	Dimension string `json:"dimension"`
+	Value     string `json:"value"`
+	Count     int64  `json:"count"`
+}
+
 type Link struct {
 	ID          int64              `json:"id"`
 	Code        string             `json:"code"`

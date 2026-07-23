@@ -7,23 +7,27 @@ import (
 	"strconv"
 )
 
-// Config - общие настройки для api и redirector.
+// Config - общие настройки сервисов.
 type Config struct {
-	DatabaseURL string // строка подключения к Postgres
-	Port        string // порт HTTP-сервера
-	BaseURL     string // базовый адрес коротких ссылок (хост redirector)
-	RedisAddr   string // адрес Redis, host:port
-	CodeLength  int    // длина генерируемого короткого кода
+	DatabaseURL  string // строка подключения к Postgres
+	Port         string // порт HTTP-сервера
+	BaseURL      string // базовый адрес коротких ссылок (хост redirector)
+	RedisAddr    string // адрес Redis, host:port
+	KafkaBrokers string // адреса Kafka-брокеров через запятую
+	GeoIPPath    string // путь к MMDB-базе GeoIP
+	CodeLength   int    // длина генерируемого короткого кода
 }
 
 // Load собирает конфиг из окружения. DATABASE_URL обязателен, остальное
 // имеет разумные значения по умолчанию.
 func Load() (Config, error) {
 	cfg := Config{
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		Port:        getenv("PORT", "8080"),
-		BaseURL:     getenv("BASE_URL", "http://localhost:8081"),
-		RedisAddr:   getenv("REDIS_ADDR", "localhost:6379"),
+		DatabaseURL:  os.Getenv("DATABASE_URL"),
+		Port:         getenv("PORT", "8080"),
+		BaseURL:      getenv("BASE_URL", "http://localhost:8081"),
+		RedisAddr:    getenv("REDIS_ADDR", "localhost:6379"),
+		KafkaBrokers: getenv("KAFKA_BROKERS", "localhost:9092"),
+		GeoIPPath:    getenv("GEOIP_PATH", "deploy/geoip/dbip-country-lite.mmdb"),
 	}
 
 	if cfg.DatabaseURL == "" {

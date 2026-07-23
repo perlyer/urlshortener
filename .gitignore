@@ -11,6 +11,9 @@
 web/node_modules/
 web/dist/
 
+# GeoIP база (качается через `make geoip-fetch`, не коммитим бинарь)
+deploy/geoip/*.mmdb
+
 # IDE
 .idea/
 .vscode/
