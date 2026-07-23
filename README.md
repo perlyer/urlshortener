@@ -74,5 +74,5 @@ make test   # go test ./... - юнит + интеграционные
 
 - [x] Redis cache-aside на пути редиректа
 - [x] Аналитика кликов через Kafka (async) - устройство, браузер, ОС, страна (GeoIP), язык, источник, уникальные (HyperLogLog)
-- [ ] React SPA - создание ссылок и страница статистики
+- [x] React SPA - создание ссылок и дашборд статистики (Vite + TS, recharts)
 - [ ] Prometheus + Grafana и нагрузочный тест на k6
