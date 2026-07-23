@@ -67,7 +67,22 @@ func NewStore(t *testing.T, ctx context.Context) *storage.Store {
 	}
 	t.Cleanup(pool.Close)
 
-	return storage.New(db.New(pool), 7)
+	return storage.New(db.New(pool), newFakeCache(), 7)
+}
+
+// fakeCache - in-memory реализация storage.Cache для тестов, без Redis.
+type fakeCache struct{ m map[string]string }
+
+func newFakeCache() *fakeCache { return &fakeCache{m: make(map[string]string)} }
+
+func (f *fakeCache) Get(_ context.Context, key string) (string, bool, error) {
+	v, ok := f.m[key]
+	return v, ok, nil
+}
+
+func (f *fakeCache) Set(_ context.Context, key, value string) error {
+	f.m[key] = value
+	return nil
 }
 
 // migrationsDir отдаёт абсолютный путь к app/migrations относительно этого

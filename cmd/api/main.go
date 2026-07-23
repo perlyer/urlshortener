@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/perlyer/urlshortener/internal/cache"
 	"github.com/perlyer/urlshortener/internal/config"
 	"github.com/perlyer/urlshortener/internal/storage"
 	"github.com/perlyer/urlshortener/internal/storage/db"
@@ -76,8 +77,11 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Собираем слои снизу вверх: pool → Queries → Store.
-	store := storage.New(db.New(pool), cfg.CodeLength)
+	// Кэш ссылок в Redis.
+	redisCache := cache.NewRedis(cfg.RedisAddr)
+
+	// Собираем слои снизу вверх: pool → Queries → Store (+ кэш).
+	store := storage.New(db.New(pool), redisCache, cfg.CodeLength)
 
 	// Роутер: какой путь/метод → какой обработчик.
 	r := chi.NewRouter()

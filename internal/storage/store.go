@@ -25,15 +25,24 @@ var (
 	ErrCodeExhausted = errors.New("storage: не удалось подобрать свободный код")
 )
 
-// Store оборачивает сгенерённые sqlc-запросы и хранит длину кода.
+// Cache - интерфейс кэша ссылок, нужный Store. Реализуется пакетом cache
+// (RedisCache). Определён здесь, у потребителя, - это идиома Go: интерфейс
+// описывает того, кто им пользуется, а не того, кто его реализует.
+type Cache interface {
+	Get(ctx context.Context, key string) (value string, found bool, err error)
+	Set(ctx context.Context, key, value string) error
+}
+
+// Store оборачивает sqlc-запросы и кэш, хранит длину кода.
 type Store struct {
 	q       *db.Queries
+	cache   Cache
 	codeLen int
 }
 
-// New собирает Store поверх готового *db.Queries.
-func New(q *db.Queries, codeLen int) *Store {
-	return &Store{q: q, codeLen: codeLen}
+// New собирает Store поверх *db.Queries и кэша.
+func New(q *db.Queries, cache Cache, codeLen int) *Store {
+	return &Store{q: q, cache: cache, codeLen: codeLen}
 }
 
 // CreateShortLink генерирует случайный код и вставляет ссылку. Если код уже
@@ -50,6 +59,7 @@ func (s *Store) CreateShortLink(ctx context.Context, originalURL string) (db.Lin
 			OriginalURL: originalURL,
 		})
 		if err == nil {
+			_ = s.cache.Set(ctx, "url:"+code, originalURL)
 			return link, nil // успех
 		}
 
@@ -67,6 +77,12 @@ func (s *Store) CreateShortLink(ctx context.Context, originalURL string) (db.Lin
 
 // Resolve возвращает оригинальный URL по коду или ErrNotFound, если кода нет.
 func (s *Store) Resolve(ctx context.Context, code string) (string, error) {
+	url := "url:" + code
+	value, found, err := s.cache.Get(ctx, url)
+	if found {
+		return value, nil
+	}
+
 	link, err := s.q.GetLink(ctx, code)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -74,5 +90,7 @@ func (s *Store) Resolve(ctx context.Context, code string) (string, error) {
 		}
 		return "", fmt.Errorf("storage: поиск ссылки: %w", err)
 	}
+
+	_ = s.cache.Set(ctx, url, link.OriginalURL)
 	return link.OriginalURL, nil
 }
