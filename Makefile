@@ -47,3 +47,7 @@ geoip-fetch:
 	mkdir -p deploy/geoip
 	curl -sfL -o deploy/geoip/dbip-country-lite.mmdb.gz "https://download.db-ip.com/free/dbip-country-lite-$(shell date +%Y-%m).mmdb.gz"
 	gunzip -f deploy/geoip/dbip-country-lite.mmdb.gz
+
+## создать топик clicks заранее (не полагаемся на auto-create)
+kafka-topic:
+	docker exec shortener-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --create --if-not-exists --topic clicks --partitions 1 --replication-factor 1
