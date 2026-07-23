@@ -9,8 +9,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/perlyer/urlshortener/internal/events"
 	"github.com/perlyer/urlshortener/internal/storage/storagetest"
 )
+
+// fakePublisher - заглушка publisher для тестов (без Kafka).
+type fakePublisher struct{}
+
+func (fakePublisher) Publish(_ context.Context, _ events.ClickEvent) error { return nil }
 
 func TestRedirectFound(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -23,7 +29,7 @@ func TestRedirectFound(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
-	r.Get("/{code}", makeRedirectHandler(s))
+	r.Get("/{code}", makeRedirectHandler(s, fakePublisher{}))
 
 	req := httptest.NewRequest(http.MethodGet, "/"+link.Code, nil)
 	rec := httptest.NewRecorder()
@@ -43,7 +49,7 @@ func TestRedirectNotFound(t *testing.T) {
 	s := storagetest.NewStore(t, ctx)
 
 	r := chi.NewRouter()
-	r.Get("/{code}", makeRedirectHandler(s))
+	r.Get("/{code}", makeRedirectHandler(s, fakePublisher{}))
 
 	req := httptest.NewRequest(http.MethodGet, "/nosuchcode", nil)
 	rec := httptest.NewRecorder()
