@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/perlyer/urlshortener/internal/cache"
 	"github.com/perlyer/urlshortener/internal/config"
@@ -62,6 +63,39 @@ func makeCreateHandler(store *storage.Store, baseURL string) http.HandlerFunc {
 	}
 }
 
+type statItem struct {
+	Value string `json:"value"`
+	Count int64  `json:"count"`
+}
+
+type statsResponse struct {
+	Code           string                `json:"code"`
+	UniqueVisitors int64                 `json:"unique_visitors"`
+	Stats          map[string][]statItem `json:"stats"`
+}
+
+func makeStatsHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		code := chi.URLParam(r, "code")
+		rows, err := store.ClickStats(r.Context(), code)
+		if err != nil {
+			slog.Error("получение статистики", "err", err)
+			http.Error(w, "внутренняя ошибка", http.StatusInternalServerError)
+			return
+		}
+		stats := map[string][]statItem{}
+		for _, row := range rows {
+			stats[row.Dimension] = append(stats[row.Dimension], statItem{row.Value, row.Count})
+		}
+		unique, _ := rdb.PFCount(r.Context(), "unique:"+code).Result()
+
+		resp := statsResponse{Code: code, UniqueVisitors: unique, Stats: stats}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(resp)
+	}
+}
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -79,6 +113,8 @@ func main() {
 
 	// Кэш ссылок в Redis.
 	redisCache := cache.NewRedis(cfg.RedisAddr)
+	statsRedis := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	defer statsRedis.Close()
 
 	// Собираем слои снизу вверх: pool → Queries → Store (+ кэш).
 	store := storage.New(db.New(pool), redisCache, cfg.CodeLength)
@@ -86,6 +122,7 @@ func main() {
 	// Роутер: какой путь/метод → какой обработчик.
 	r := chi.NewRouter()
 	r.Post("/api/links", makeCreateHandler(store, cfg.BaseURL))
+	r.Get("/api/links/{code}/stats", makeStatsHandler(store, statsRedis))
 
 	slog.Info("api запущен", "port", cfg.Port)
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {

@@ -94,3 +94,13 @@ func (s *Store) Resolve(ctx context.Context, code string) (string, error) {
 	_ = s.cache.Set(ctx, url, link.OriginalURL)
 	return link.OriginalURL, nil
 }
+
+// ClickStats возвращает все агрегаты аналитики по коду (строки вида
+// dimension/value/count).
+func (s *Store) ClickStats(ctx context.Context, code string) ([]db.ListClickStatsRow, error) {
+	rows, err := s.q.ListClickStats(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("storage: статистика: %w", err)
+	}
+	return rows, nil
+}
