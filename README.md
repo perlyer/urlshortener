@@ -5,6 +5,17 @@
 том, как сервис держит нагрузку на чтение: read/write split на два отдельных
 сервиса, дальше по плану кэш и очередь для аналитики.
 
+## Как выглядит
+
+Сокращатель и дашборд статистики (устройства, страны, браузеры, источники, уникальные посетители):
+
+![Сокращатель](docs/screenshots/create.png)
+![Дашборд статистики](docs/screenshots/stats.png)
+
+Grafana под нагрузкой k6 - RPS, latency, cache hit rate:
+
+![Grafana](docs/screenshots/grafana.png)
+
 ## Стек
 
 Go 1.26 · chi · pgx + sqlc + goose · PostgreSQL · testcontainers · Docker Compose
