@@ -47,13 +47,22 @@ UNIQUE-констрейнт и ретраем при коллизии. Расс�
 
 ## Запуск
 
-Нужен Docker (для Postgres) и Go 1.26.
+**Весь стек в Docker одной командой** (инфра + сервисы + фронт):
 
 ```bash
-make db-up            # поднять Postgres в Docker
+make up      # собирает образы и поднимает всё; фронт на localhost:8082
+make down    # остановить
+```
+
+Или локально для разработки (нужен Go 1.26):
+
+```bash
+make db-up            # инфра в Docker (Postgres, Redis, Kafka, Prometheus, Grafana)
 make migrate-up       # накатить схему
+make kafka-topic      # создать топик
 make run-api          # сервис создания ссылок  → :8080
 make run-redirector   # сервис редиректа        → :8081  (в отдельном терминале)
+make run-analytics    # consumer аналитики       (в отдельном терминале)
 ```
 
 ## API
