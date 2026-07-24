@@ -18,6 +18,7 @@ import (
 	"github.com/perlyer/urlshortener/internal/cache"
 	"github.com/perlyer/urlshortener/internal/config"
 	"github.com/perlyer/urlshortener/internal/events"
+	"github.com/perlyer/urlshortener/internal/metrics"
 	"github.com/perlyer/urlshortener/internal/storage"
 	"github.com/perlyer/urlshortener/internal/storage/db"
 )
@@ -123,6 +124,8 @@ func main() {
 	defer producer.Close()
 
 	r := chi.NewRouter()
+	r.Use(metrics.Middleware("redirector"))
+	r.Handle("/metrics", metrics.Handler())
 	r.Get("/{code}", makeRedirectHandler(store, producer))
 
 	slog.Info("redirector запущен", "port", cfg.Port)

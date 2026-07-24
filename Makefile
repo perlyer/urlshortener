@@ -4,7 +4,7 @@ DATABASE_URL ?= postgres://shortener:shortener@localhost:5432/shortener?sslmode=
 
 ## поднять Postgres в docker
 db-up:
-	docker compose -f deploy/docker-compose.yml up -d postgres redis kafka
+	docker compose -f deploy/docker-compose.yml up -d postgres redis kafka prometheus grafana
 
 ## остановить и удалить контейнеры
 db-down:

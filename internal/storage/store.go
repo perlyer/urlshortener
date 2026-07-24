@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/perlyer/urlshortener/internal/metrics"
 	"github.com/perlyer/urlshortener/internal/shortcode"
 	"github.com/perlyer/urlshortener/internal/storage/db"
 )
@@ -80,8 +81,10 @@ func (s *Store) Resolve(ctx context.Context, code string) (string, error) {
 	url := "url:" + code
 	value, found, err := s.cache.Get(ctx, url)
 	if found {
+		metrics.CacheHit()
 		return value, nil
 	}
+	metrics.CacheMiss()
 
 	link, err := s.q.GetLink(ctx, code)
 	if err != nil {

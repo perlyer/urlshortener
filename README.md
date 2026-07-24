@@ -70,9 +70,24 @@ make test   # go test ./... - юнит + интеграционные
 Интеграционные тесты поднимают настоящий Postgres в Docker через
 `testcontainers`, поэтому для них тоже нужен запущенный Docker.
 
-## Дальше
+## Наблюдаемость и нагрузка
+
+Каждый сервис отдаёт метрики Prometheus на `/metrics` (RPS, latency, cache hit rate).
+`make db-up` поднимает Prometheus (`:9090`) и Grafana (`:3000`, дашборд `urlshortener`
+провижится из коробки).
+
+Нагрузочный тест горячего пути редиректа (k6, 50 VU, 30с):
+
+```bash
+k6 run loadtest/redirect.js
+```
+
+Результат на локальной машине (Apple Silicon): **~22 800 RPS**, latency p95 **3.5 мс**,
+cache hit rate **100%**, ноль ошибок - редиректы отдаются из Redis-кэша, БД не тревожится.
+
+## Дорожная карта
 
 - [x] Redis cache-aside на пути редиректа
 - [x] Аналитика кликов через Kafka (async) - устройство, браузер, ОС, страна (GeoIP), язык, источник, уникальные (HyperLogLog)
 - [x] React SPA - создание ссылок и дашборд статистики (Vite + TS, recharts)
-- [ ] Prometheus + Grafana и нагрузочный тест на k6
+- [x] Prometheus + Grafana и нагрузочный тест на k6

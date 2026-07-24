@@ -17,6 +17,7 @@ import (
 
 	"github.com/perlyer/urlshortener/internal/cache"
 	"github.com/perlyer/urlshortener/internal/config"
+	"github.com/perlyer/urlshortener/internal/metrics"
 	"github.com/perlyer/urlshortener/internal/storage"
 	"github.com/perlyer/urlshortener/internal/storage/db"
 )
@@ -122,12 +123,14 @@ func main() {
 
 	// Роутер: какой путь/метод → какой обработчик.
 	r := chi.NewRouter()
+	r.Use(metrics.Middleware("api"))
 	// CORS для фронта (dev). В проде список Origin стоит сузить.
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},
 		AllowedMethods: []string{"GET", "POST"},
 		AllowedHeaders: []string{"Content-Type"},
 	}))
+	r.Handle("/metrics", metrics.Handler())
 	r.Post("/api/links", makeCreateHandler(store, cfg.BaseURL))
 	r.Get("/api/links/{code}/stats", makeStatsHandler(store, statsRedis))
 
