@@ -1,5 +1,7 @@
 # urlshortener
 
+![CI](https://github.com/perlyer/urlshortener/actions/workflows/ci.yml/badge.svg)
+
 Сокращатель ссылок, на котором я учу Go и практикую system design под нагрузку.
 Простую предметную область выбрал намеренно - чтобы фокус был не на фичах, а на
 том, как сервис держит нагрузку на чтение: read/write split на два отдельных
