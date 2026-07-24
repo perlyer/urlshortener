@@ -1,0 +1,9 @@
+.git
+web/node_modules
+web/dist
+*.test
+/api
+/redirector
+/analytics
+deploy/geoip/*.mmdb
+docs

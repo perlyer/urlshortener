@@ -35,11 +35,12 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -75,6 +76,117 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
+
+  # ── одноразовые init-задачи ──
+  migrate:
+    image: golang:1.26-alpine
+    working_dir: /src
+    volumes:
+      - ..:/src
+    environment:
+      DATABASE_URL: postgres://shortener:shortener@postgres:5432/shortener?sslmode=disable
+    command: sh -c 'go tool goose -dir migrations postgres "$$DATABASE_URL" up'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["app"]
+
+  kafka-init:
+    image: apache/kafka:3.9.0
+    command: /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic clicks --partitions 1 --replication-factor 1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    profiles: ["app"]
+
+  # ── сервисы ──
+  api:
+    build:
+      context: ..
+      args:
+        SERVICE: api
+    environment:
+      DATABASE_URL: postgres://shortener:shortener@postgres:5432/shortener?sslmode=disable
+      REDIS_ADDR: redis:6379
+      KAFKA_BROKERS: kafka:29092
+      BASE_URL: http://localhost:8081
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    profiles: ["app"]
+
+  redirector:
+    build:
+      context: ..
+      args:
+        SERVICE: redirector
+    environment:
+      DATABASE_URL: postgres://shortener:shortener@postgres:5432/shortener?sslmode=disable
+      REDIS_ADDR: redis:6379
+      KAFKA_BROKERS: kafka:29092
+      PORT: "8081"
+    ports:
+      - "8081:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    profiles: ["app"]
+
+  analytics:
+    build:
+      context: ..
+      args:
+        SERVICE: analytics
+    environment:
+      DATABASE_URL: postgres://shortener:shortener@postgres:5432/shortener?sslmode=disable
+      REDIS_ADDR: redis:6379
+      KAFKA_BROKERS: kafka:29092
+      GEOIP_PATH: /geoip/dbip-country-lite.mmdb
+    volumes:
+      - ./geoip:/geoip:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    profiles: ["app"]
+
+  web:
+    build:
+      context: ../web
+    ports:
+      - "8082:80"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    profiles: ["app"]
 
 volumes:
   pgdata:

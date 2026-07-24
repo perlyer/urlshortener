@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -59,6 +60,15 @@ func main() {
 	// ReadMessage разблокируется и цикл выходит.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	// Лёгкий /health для healthcheck - сам consumer не HTTP-сервис.
+	go func() {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		})
+		_ = http.ListenAndServe(":8090", mux)
+	}()
 
 	slog.Info("analytics запущен, читаю топик", "topic", events.Topic)
 	for {

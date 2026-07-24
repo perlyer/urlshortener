@@ -126,6 +126,14 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(metrics.Middleware("redirector"))
 	r.Handle("/metrics", metrics.Handler())
+	// статический /health имеет приоритет над параметром /{code}
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		if err := pool.Ping(r.Context()); err != nil {
+			http.Error(w, "db unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = w.Write([]byte("ok"))
+	})
 	r.Get("/{code}", makeRedirectHandler(store, producer))
 
 	slog.Info("redirector запущен", "port", cfg.Port)

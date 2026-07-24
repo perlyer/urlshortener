@@ -172,6 +172,13 @@ func main() {
 		AllowedHeaders: []string{"Content-Type"},
 	}))
 	r.Handle("/metrics", metrics.Handler())
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		if err := pool.Ping(r.Context()); err != nil {
+			http.Error(w, "db unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = w.Write([]byte("ok"))
+	})
 	r.With(rateLimitMiddleware(rateLimiter)).Post("/api/links", makeCreateHandler(store, cfg.BaseURL))
 	r.Get("/api/links/{code}/stats", makeStatsHandler(store, statsRedis))
 

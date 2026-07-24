@@ -10,6 +10,14 @@ db-up:
 db-down:
 	docker compose -f deploy/docker-compose.yml down
 
+## поднять ВЕСЬ стек в docker: инфра + сервисы + фронт (собирает образы)
+up:
+	docker compose -f deploy/docker-compose.yml --profile app up -d --build
+
+## остановить весь стек
+down:
+	docker compose -f deploy/docker-compose.yml --profile app down
+
 ## применить миграции
 migrate-up:
 	go tool goose -dir migrations postgres "$(DATABASE_URL)" up
