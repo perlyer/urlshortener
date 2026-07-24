@@ -6,11 +6,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -154,7 +158,7 @@ func main() {
 	// Кэш ссылок в Redis.
 	redisCache := cache.NewRedis(cfg.RedisAddr)
 	statsRedis := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
-	defer statsRedis.Close()
+	defer func() { _ = statsRedis.Close() }()
 
 	// Собираем слои снизу вверх: pool → Queries → Store (+ кэш).
 	store := storage.New(db.New(pool), redisCache, cfg.CodeLength)
@@ -182,9 +186,26 @@ func main() {
 	r.With(rateLimitMiddleware(rateLimiter)).Post("/api/links", makeCreateHandler(store, cfg.BaseURL))
 	r.Get("/api/links/{code}/stats", makeStatsHandler(store, statsRedis))
 
-	slog.Info("api запущен", "port", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
-		slog.Error("сервер остановлен", "err", err)
-		os.Exit(1)
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}
+
+	// По SIGINT/SIGTERM даём серверу дообработать текущие запросы и выйти.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		slog.Info("api запущен", "port", cfg.Port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("сервер", "err", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-ctx.Done() // ждём сигнал остановки
+	slog.Info("останавливаюсь, доводим запросы в полёте…")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("graceful shutdown", "err", err)
 	}
 }

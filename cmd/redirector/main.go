@@ -9,7 +9,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -121,7 +123,7 @@ func main() {
 	store := storage.New(db.New(pool), redisCache, cfg.CodeLength)
 
 	producer := events.NewProducer(strings.Split(cfg.KafkaBrokers, ","), events.Topic)
-	defer producer.Close()
+	defer func() { _ = producer.Close() }()
 
 	r := chi.NewRouter()
 	r.Use(metrics.Middleware("redirector"))
@@ -136,9 +138,26 @@ func main() {
 	})
 	r.Get("/{code}", makeRedirectHandler(store, producer))
 
-	slog.Info("redirector запущен", "port", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
-		slog.Error("сервер остановлен", "err", err)
-		os.Exit(1)
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}
+
+	// По SIGINT/SIGTERM даём серверу дообработать текущие запросы и выйти.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		slog.Info("redirector запущен", "port", cfg.Port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("сервер", "err", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-ctx.Done()
+	slog.Info("останавливаюсь, доводим запросы в полёте…")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("graceful shutdown", "err", err)
 	}
 }

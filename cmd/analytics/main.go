@@ -42,10 +42,10 @@ func main() {
 		slog.Error("открытие GeoIP-базы", "err", err, "path", cfg.GeoIPPath)
 		os.Exit(1)
 	}
-	defer geo.Close()
+	defer func() { _ = geo.Close() }()
 
 	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	processor := analytics.NewProcessor(db.New(pool), rdb, geo)
 
@@ -54,7 +54,7 @@ func main() {
 		Topic:   events.Topic,
 		GroupID: "analytics", // consumer group - offset хранится в Kafka
 	})
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Грациозная остановка: по Ctrl+C / SIGTERM отменяем контекст,
 	// ReadMessage разблокируется и цикл выходит.

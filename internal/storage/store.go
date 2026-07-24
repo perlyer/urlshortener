@@ -79,7 +79,7 @@ func (s *Store) CreateShortLink(ctx context.Context, originalURL string) (db.Lin
 // Resolve возвращает оригинальный URL по коду или ErrNotFound, если кода нет.
 func (s *Store) Resolve(ctx context.Context, code string) (string, error) {
 	url := "url:" + code
-	value, found, err := s.cache.Get(ctx, url)
+	value, found, _ := s.cache.Get(ctx, url)
 	if found {
 		metrics.CacheHit()
 		return value, nil

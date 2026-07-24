@@ -54,7 +54,7 @@ func NewStore(t *testing.T, ctx context.Context) *storage.Store {
 	if err != nil {
 		t.Fatalf("storagetest: sql.Open: %v", err)
 	}
-	goose.SetDialect("postgres")
+	_ = goose.SetDialect("postgres")
 	if err := goose.Up(sqlDB, migrationsDir()); err != nil {
 		t.Fatalf("storagetest: миграции: %v", err)
 	}
