@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -18,6 +20,7 @@ import (
 	"github.com/perlyer/urlshortener/internal/cache"
 	"github.com/perlyer/urlshortener/internal/config"
 	"github.com/perlyer/urlshortener/internal/metrics"
+	"github.com/perlyer/urlshortener/internal/ratelimit"
 	"github.com/perlyer/urlshortener/internal/storage"
 	"github.com/perlyer/urlshortener/internal/storage/db"
 )
@@ -98,6 +101,41 @@ func makeStatsHandler(store *storage.Store, rdb *redis.Client) http.HandlerFunc 
 	}
 }
 
+// clientIP достаёт IP клиента: за прокси - из X-Forwarded-For (первый в списке),
+// иначе - из RemoteAddr (там "host:port").
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if i := strings.IndexByte(xff, ','); i >= 0 {
+			return strings.TrimSpace(xff[:i])
+		}
+		return strings.TrimSpace(xff)
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+func rateLimitMiddleware(limiter *ratelimit.Limiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := clientIP(r)
+			ok, err := limiter.Allow(r.Context(), ip)
+			if err != nil {
+				slog.Error("rate limited", "err", err)
+				next.ServeHTTP(w, r)
+				return
+			}
+			if !ok {
+				http.Error(w, "слишком много запросов", http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -123,6 +161,9 @@ func main() {
 
 	// Роутер: какой путь/метод → какой обработчик.
 	r := chi.NewRouter()
+
+	rateLimiter := ratelimit.NewLimiter(statsRedis, 20, 10)
+
 	r.Use(metrics.Middleware("api"))
 	// CORS для фронта (dev). В проде список Origin стоит сузить.
 	r.Use(cors.Handler(cors.Options{
@@ -131,7 +172,7 @@ func main() {
 		AllowedHeaders: []string{"Content-Type"},
 	}))
 	r.Handle("/metrics", metrics.Handler())
-	r.Post("/api/links", makeCreateHandler(store, cfg.BaseURL))
+	r.With(rateLimitMiddleware(rateLimiter)).Post("/api/links", makeCreateHandler(store, cfg.BaseURL))
 	r.Get("/api/links/{code}/stats", makeStatsHandler(store, statsRedis))
 
 	slog.Info("api запущен", "port", cfg.Port)
